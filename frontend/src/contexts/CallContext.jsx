@@ -28,7 +28,7 @@ export const CallProvider = ({ children }) => {
     activeCallDataRef.current = activeCallData;
   }, [isCallActive, activeCallData]);
 
-  // Listen for call state changes from other tabs (only once on mount)
+  // Listen for call state changes from other tabs
   useEffect(() => {
     const handleChannelMessage = (event) => {
       const { type, data } = event.data;
@@ -59,7 +59,7 @@ export const CallProvider = ({ children }) => {
 
     callStateChannel.addEventListener('message', handleChannelMessage);
 
-    // Broadcast current state to other tabs only once on mount
+    // Broadcast current state to other tabs
     callStateChannel.postMessage({
       type: 'CALL_STATE_SYNC',
       data: {
@@ -75,12 +75,16 @@ export const CallProvider = ({ children }) => {
   }, []); // Empty dependency array - only run once on mount
 
   const startCall = (callType, callData = null) => {
+    console.log('CallContext startCall() called with:', { callType, callData });
+    
     // Check if already in a call
     if (isCallActiveRef.current) {
       console.warn('Call already active, cannot start new call');
       return false;
     }
 
+    console.log('CallContext: Starting call, updating state...');
+    
     // Update local state
     setIsCallActive(true);
     setActiveCallType(callType);
@@ -92,10 +96,13 @@ export const CallProvider = ({ children }) => {
       data: { callType, callData }
     });
 
+    console.log('CallContext: Call started successfully');
     return true;
   };
 
   const endCall = () => {
+    console.log('CallContext endCall() called');
+    
     // Update local state
     setIsCallActive(false);
     setActiveCallType(null);
@@ -106,10 +113,14 @@ export const CallProvider = ({ children }) => {
       type: 'CALL_ENDED',
       data: {}
     });
+    
+    console.log('CallContext: Call ended successfully');
   };
 
   const isBusy = () => {
-    return isCallActiveRef.current;
+    const busy = isCallActiveRef.current;
+    console.log('CallContext isBusy() called, returning:', busy);
+    return busy;
   };
 
   return (

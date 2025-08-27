@@ -50,13 +50,16 @@ const CallManager = ({ currentUser }) => {
           // Ignore call requests from oneself
           if (data.caller._id === currentUser._id) return;
           
+          console.log('CallManager: Received call request from:', data.caller.username);
+          
           // Check if user is busy (either in active call or has incoming call)
-          if (isBusy() || activeCallRef.current || incomingCallRef.current) {
+          if (activeCallRef.current || incomingCallRef.current) {
             console.warn('User is busy, rejecting call request.');
             socketInstance.emit('callRejected', { to: data.caller._id, from: currentUser._id });
             return;
           }
           
+          console.log('CallManager: Accepting call request, setting incoming call');
           setIncomingCall({ caller: data.caller, type: data.type });
         };
 
