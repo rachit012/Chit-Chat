@@ -40,6 +40,7 @@ const CallManager = ({ currentUser }) => {
     } else if (!isCallActive && activeCall && !incomingCall) {
       // Only clean up if there's no incoming call and the call was ended from another component
       console.log('CallManager: Call ended from CallContext, cleaning up');
+      console.log('CallManager: Cleanup reason - isCallActive:', isCallActive, 'activeCall:', !!activeCall, 'incomingCall:', !!incomingCall);
       setActiveCall(null);
     }
   }, [isCallActive, activeCallType, activeCallData, activeCall, incomingCall]);
@@ -103,16 +104,19 @@ const CallManager = ({ currentUser }) => {
   useEffect(() => {
     const handleChannelMessage = (event) => {
       console.log(`[BroadcastChannel] Received message in this tab:`, event.data);
+      console.log(`[BroadcastChannel] Current state before processing:`, { activeCall, incomingCall, currentUser: currentUser?._id });
       const { type } = event.data;
 
       switch (type) {
         case 'ACCEPT_CALL':
         case 'REJECT_CALL':
           // If another tab accepted or rejected, this tab should just clear its incoming call UI.
+          console.log(`[BroadcastChannel] Processing ${type}, clearing incoming call`);
           setIncomingCall(null);
           break;
         case 'END_CALL':
           // If another tab ended the call, this tab should clean up everything.
+          console.log(`[BroadcastChannel] Processing END_CALL, cleaning up everything`);
           setIncomingCall(null);
           setActiveCall(null);
           endCall(); // Update CallContext
@@ -120,6 +124,7 @@ const CallManager = ({ currentUser }) => {
         default:
           break;
       }
+      console.log(`[BroadcastChannel] State after processing ${type}:`, { activeCall, incomingCall });
     };
 
     callChannel.addEventListener('message', handleChannelMessage);

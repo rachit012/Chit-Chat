@@ -37,15 +37,19 @@ export const CallProvider = ({ children }) => {
       switch (type) {
         case 'CALL_STARTED':
           console.log('CallContext: Processing CALL_STARTED message:', data);
+          console.log('CallContext: Current state before CALL_STARTED:', { isCallActive, activeCallType, activeCallData });
           setIsCallActive(true);
           setActiveCallType(data.callType);
           setActiveCallData(data.callData);
+          console.log('CallContext: State after CALL_STARTED:', { isCallActive: true, activeCallType: data.callType, activeCallData: data.callData });
           break;
         case 'CALL_ENDED':
           console.log('CallContext: Processing CALL_ENDED message:', data);
+          console.log('CallContext: Current state before CALL_ENDED:', { isCallActive, activeCallType, activeCallData });
           setIsCallActive(false);
           setActiveCallType(null);
           setActiveCallData(null);
+          console.log('CallContext: State after CALL_ENDED:', { isCallActive: false, activeCallType: null, activeCallData: null });
           break;
         case 'CALL_STATE_SYNC':
           console.log('CallContext: Processing CALL_STATE_SYNC message:', data);
@@ -94,16 +98,19 @@ export const CallProvider = ({ children }) => {
     setActiveCallData(callData);
 
     // Broadcast to other tabs
-    callStateChannel.postMessage({
+    const message = {
       type: 'CALL_STARTED',
       data: { callType, callData }
-    });
+    };
+    console.log('CallContext: Broadcasting CALL_STARTED message:', message);
+    callStateChannel.postMessage(message);
 
     return true;
   };
 
   const endCall = () => {
     console.log('CallContext: endCall called, current state:', { isCallActive, activeCallType, activeCallData });
+    console.log('CallContext: endCall called from stack trace:', new Error().stack);
     
     // Update local state
     setIsCallActive(false);
@@ -111,10 +118,12 @@ export const CallProvider = ({ children }) => {
     setActiveCallData(null);
 
     // Broadcast to other tabs
-    callStateChannel.postMessage({
+    const message = {
       type: 'CALL_ENDED',
       data: {}
-    });
+    };
+    console.log('CallContext: Broadcasting CALL_ENDED message:', message);
+    callStateChannel.postMessage(message);
   };
 
   const isBusy = () => {
