@@ -598,10 +598,22 @@ io.on('connection', (socket) => {
 
   // Handle WebRTC signaling
   socket.on('callSignal', ({ signal, to }) => {
+    console.log(`[Call Signal] From: ${socket.userId} -> To: ${to}, Type: ${signal.type}`);
+    
+    // Find the target user's socket
+    const targetSocket = Array.from(io.sockets.sockets.values()).find(s => s.userId === to);
+    
+    if (!targetSocket || !targetSocket.connected) {
+      console.log(`[Call Signal] Target user ${to} is not connected, cannot send signal`);
+      return;
+    }
+    
     io.to(to).emit('callSignal', {
       signal: signal,
       from: socket.userId,
     });
+    
+    console.log(`[Call Signal] Signal sent successfully to user ${to}`);
   });
 
   // Handle group call requests
