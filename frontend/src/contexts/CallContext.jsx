@@ -72,19 +72,15 @@ export const CallProvider = ({ children }) => {
     return () => {
       callStateChannel.removeEventListener('message', handleChannelMessage);
     };
-  }, []); // Empty dependency array - only run once on mount
+  }, [isCallActive, activeCallType, activeCallData]);
 
   const startCall = (callType, callData = null) => {
-    console.log('CallContext startCall() called with:', { callType, callData });
-    
     // Check if already in a call
     if (isCallActiveRef.current) {
       console.warn('Call already active, cannot start new call');
       return false;
     }
 
-    console.log('CallContext: Starting call, updating state...');
-    
     // Update local state
     setIsCallActive(true);
     setActiveCallType(callType);
@@ -96,13 +92,10 @@ export const CallProvider = ({ children }) => {
       data: { callType, callData }
     });
 
-    console.log('CallContext: Call started successfully');
     return true;
   };
 
   const endCall = () => {
-    console.log('CallContext endCall() called');
-    
     // Update local state
     setIsCallActive(false);
     setActiveCallType(null);
@@ -113,14 +106,10 @@ export const CallProvider = ({ children }) => {
       type: 'CALL_ENDED',
       data: {}
     });
-    
-    console.log('CallContext: Call ended successfully');
   };
 
   const isBusy = () => {
-    const busy = isCallActiveRef.current;
-    console.log('CallContext isBusy() called, returning:', busy);
-    return busy;
+    return isCallActiveRef.current;
   };
 
   return (

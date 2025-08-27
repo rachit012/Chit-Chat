@@ -528,6 +528,19 @@ io.on('connection', (socket) => {
       return;
     }
     
+    // Check if the target user is already in a call by checking their socket rooms
+    const targetUserRooms = Array.from(targetSocket.rooms);
+    const isInCall = targetUserRooms.some(room => room.startsWith('call_'));
+    
+    if (isInCall) {
+      console.log(`[Call Request] User ${to} is already in a call`);
+      socket.emit('callRejected', { 
+        to: from,
+        reason: 'User is busy'
+      });
+      return;
+    }
+    
     // Send the call request to the target user
     io.to(to).emit('callRequest', {
       caller: { _id: from, username: socket.username },
@@ -586,6 +599,14 @@ io.on('connection', (socket) => {
   // Handle WebRTC signaling
   socket.on('callSignal', ({ signal, to }) => {
     console.log(`[Call Signal] From: ${socket.userId} -> To: ${to}, Type: ${signal.type}`);
+    
+    // Find the target user's socket
+    const targetSocket = Array.from(io.sockets.sockets.values()).find(s => s.userId === to);
+    
+    if (!targetSocket || !targetSocket.connected) {
+      console.log(`[Call Signal] Target user ${to} is not connected, cannot send signal`);
+      return;
+    }
     
     io.to(to).emit('callSignal', {
       signal: signal,

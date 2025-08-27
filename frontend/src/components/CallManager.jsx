@@ -20,6 +20,8 @@ const CallManager = ({ currentUser }) => {
 
   // Handle outgoing calls from CallContext
   useEffect(() => {
+    console.log('CallManager: State change detected:', { isCallActive, activeCallType, activeCallData, activeCall });
+    
     if (isCallActive && activeCallData && !activeCall) {
       // This is an outgoing call initiated from another component
       console.log('CallManager: Setting up outgoing call from CallContext');
@@ -30,7 +32,7 @@ const CallManager = ({ currentUser }) => {
       });
     } else if (!isCallActive && activeCall) {
       // Call was ended from another component
-      console.log('CallManager: Ending call from CallContext');
+      console.log('CallManager: Call ended from CallContext, cleaning up');
       setActiveCall(null);
       setIncomingCall(null);
     }
@@ -50,16 +52,13 @@ const CallManager = ({ currentUser }) => {
           // Ignore call requests from oneself
           if (data.caller._id === currentUser._id) return;
           
-          console.log('CallManager: Received call request from:', data.caller.username);
-          
           // Check if user is busy (either in active call or has incoming call)
-          if (activeCallRef.current || incomingCallRef.current) {
+          if (isBusy() || activeCallRef.current || incomingCallRef.current) {
             console.warn('User is busy, rejecting call request.');
             socketInstance.emit('callRejected', { to: data.caller._id, from: currentUser._id });
             return;
           }
           
-          console.log('CallManager: Accepting call request, setting incoming call');
           setIncomingCall({ caller: data.caller, type: data.type });
         };
 
@@ -189,7 +188,7 @@ const CallManager = ({ currentUser }) => {
   if (activeCall) {
     return (
       <VideoCall
-        key={`${activeCall.otherUser._id}-${activeCall.type}-${activeCall.isIncoming ? 'incoming' : 'outgoing'}`}
+        key={activeCall.otherUser._id}
         currentUser={currentUser}
         otherUser={activeCall.otherUser}
         callType={activeCall.type}
