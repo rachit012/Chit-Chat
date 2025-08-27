@@ -22,6 +22,7 @@ const CallManager = ({ currentUser }) => {
   useEffect(() => {
     if (isCallActive && activeCallData && !activeCall) {
       // This is an outgoing call initiated from another component
+      console.log('CallManager: Setting up outgoing call from CallContext');
       setActiveCall({
         otherUser: activeCallData.otherUser,
         type: activeCallType,
@@ -29,6 +30,7 @@ const CallManager = ({ currentUser }) => {
       });
     } else if (!isCallActive && activeCall) {
       // Call was ended from another component
+      console.log('CallManager: Ending call from CallContext');
       setActiveCall(null);
       setIncomingCall(null);
     }
@@ -184,7 +186,7 @@ const CallManager = ({ currentUser }) => {
   if (activeCall) {
     return (
       <VideoCall
-        key={activeCall.otherUser._id}
+        key={`${activeCall.otherUser._id}-${activeCall.type}-${activeCall.isIncoming ? 'incoming' : 'outgoing'}`}
         currentUser={currentUser}
         otherUser={activeCall.otherUser}
         callType={activeCall.type}

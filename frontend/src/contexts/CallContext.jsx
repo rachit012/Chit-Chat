@@ -28,7 +28,7 @@ export const CallProvider = ({ children }) => {
     activeCallDataRef.current = activeCallData;
   }, [isCallActive, activeCallData]);
 
-  // Listen for call state changes from other tabs
+  // Listen for call state changes from other tabs (only once on mount)
   useEffect(() => {
     const handleChannelMessage = (event) => {
       const { type, data } = event.data;
@@ -59,7 +59,7 @@ export const CallProvider = ({ children }) => {
 
     callStateChannel.addEventListener('message', handleChannelMessage);
 
-    // Broadcast current state to other tabs
+    // Broadcast current state to other tabs only once on mount
     callStateChannel.postMessage({
       type: 'CALL_STATE_SYNC',
       data: {
@@ -72,7 +72,7 @@ export const CallProvider = ({ children }) => {
     return () => {
       callStateChannel.removeEventListener('message', handleChannelMessage);
     };
-  }, [isCallActive, activeCallType, activeCallData]);
+  }, []); // Empty dependency array - only run once on mount
 
   const startCall = (callType, callData = null) => {
     // Check if already in a call

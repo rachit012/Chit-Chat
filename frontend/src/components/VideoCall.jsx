@@ -6,6 +6,7 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
   const [error, setError] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
 
   const localVideoRef = useRef();
   const remoteVideoRef = useRef();
@@ -19,6 +20,24 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
   const pendingCandidatesRef = useRef([]);
   const hasRemoteDescriptionRef = useRef(false);
   const hasLocalDescriptionRef = useRef(false);
+  const connectionTimeoutRef = useRef(null);
+
+  // Set up connection timeout
+  useEffect(() => {
+    connectionTimeoutRef.current = setTimeout(() => {
+      if (isConnecting && !isClosedRef.current) {
+        console.log('Connection timeout - ending call');
+        setError('Connection timeout. Please try again.');
+        onClose();
+      }
+    }, 30000); // 30 second timeout
+
+    return () => {
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+      }
+    };
+  }, [isConnecting, onClose]);
 
   const handleCallSignal = useCallback(async ({ signal }) => {
     if (isClosedRef.current) return;
@@ -148,7 +167,13 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
       
       if (pc.connectionState === 'connected') {
         setIsConnecting(false);
+        setIsConnected(true);
         console.log('WebRTC connection established!');
+        // Clear connection timeout when connected
+        if (connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = null;
+        }
       } else if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
         console.log('WebRTC connection lost:', pc.connectionState);
         if (!isClosedRef.current) onClose();
@@ -186,29 +211,28 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
       });
       
       await pc.setLocalDescription(offer);
-      hasLocalDescriptionRef.current = true;
       console.log('Local description set to offer');
       
-      if (socketRef.current) {
-        // Send offer with retry mechanism
-        const sendOffer = () => {
-          socketRef.current.emit('callSignal', { 
-            signal: { type: 'offer', sdp: offer.sdp }, 
-            to: otherUser._id 
-          });
-          console.log('Offer sent to peer');
-        };
-        
-        sendOffer();
-        
-        // Retry sending offer after 2 seconds if still connecting
-        setTimeout(() => {
-          if (isConnecting && !isClosedRef.current) {
-            console.log('Retrying offer send...');
-            sendOffer();
-          }
-        }, 2000);
-      }
+              if (socketRef.current) {
+          // Send offer with retry mechanism
+          const sendOffer = () => {
+            socketRef.current.emit('callSignal', { 
+              signal: { type: 'offer', sdp: offer.sdp }, 
+              to: otherUser._id 
+            });
+            console.log('Offer sent to peer');
+          };
+          
+          sendOffer();
+          
+          // Retry sending offer after 2 seconds if still connecting
+          setTimeout(() => {
+            if (isConnecting && !isClosedRef.current) {
+              console.log('Retrying offer send...');
+              sendOffer();
+            }
+          }, 2000);
+        }
     } catch (err) {
       console.error('Error creating offer:', err);
       setError('Failed to initiate call');
