@@ -32,37 +32,52 @@ export const CallProvider = ({ children }) => {
   useEffect(() => {
     const handleChannelMessage = (event) => {
       console.log('CallContext: Received BroadcastChannel message:', event.data);
+      console.log('CallContext: Current state before processing message:', { isCallActive, activeCallType, activeCallData });
       const { type, data } = event.data;
       
       switch (type) {
         case 'CALL_STARTED':
           console.log('CallContext: Processing CALL_STARTED message:', data);
           console.log('CallContext: Current state before CALL_STARTED:', { isCallActive, activeCallType, activeCallData });
-          setIsCallActive(true);
-          setActiveCallType(data.callType);
-          setActiveCallData(data.callData);
-          console.log('CallContext: State after CALL_STARTED:', { isCallActive: true, activeCallType: data.callType, activeCallData: data.callData });
+          
+          // Only process CALL_STARTED if we're not already in a call
+          if (!isCallActive) {
+            setIsCallActive(true);
+            setActiveCallType(data.callType);
+            setActiveCallData(data.callData);
+            console.log('CallContext: State updated to active after CALL_STARTED');
+          } else {
+            console.log('CallContext: Ignoring CALL_STARTED - already in a call');
+          }
           break;
         case 'CALL_ENDED':
           console.log('CallContext: Processing CALL_ENDED message:', data);
           console.log('CallContext: Current state before CALL_ENDED:', { isCallActive, activeCallType, activeCallData });
-          setIsCallActive(false);
-          setActiveCallType(null);
-          setActiveCallData(null);
-          console.log('CallContext: State after CALL_ENDED:', { isCallActive: false, activeCallType: null, activeCallData: null });
+          
+          // Only process CALL_ENDED if we're in a call
+          if (isCallActive) {
+            setIsCallActive(false);
+            setActiveCallType(null);
+            setActiveCallData(null);
+            console.log('CallContext: State updated to inactive after CALL_ENDED');
+          } else {
+            console.log('CallContext: Ignoring CALL_ENDED - not in a call');
+          }
           break;
         case 'CALL_STATE_SYNC':
           console.log('CallContext: Processing CALL_STATE_SYNC message:', data);
           // Sync state from other tabs
-          if (data.isCallActive) {
+          if (data.isCallActive && !isCallActive) {
             setIsCallActive(true);
             setActiveCallType(data.callType);
             setActiveCallData(data.callData);
+            console.log('CallContext: State synced from other tab');
           }
           break;
         default:
           break;
       }
+      console.log('CallContext: State after processing message:', { isCallActive, activeCallType, activeCallData });
     };
 
     callStateChannel.addEventListener('message', handleChannelMessage);
@@ -111,6 +126,12 @@ export const CallProvider = ({ children }) => {
   const endCall = () => {
     console.log('CallContext: endCall called, current state:', { isCallActive, activeCallType, activeCallData });
     console.log('CallContext: endCall called from stack trace:', new Error().stack);
+    
+    // Don't allow endCall to be called if we're not in a call
+    if (!isCallActive) {
+      console.warn('CallContext: endCall called but not in a call, ignoring');
+      return;
+    }
     
     // Update local state
     setIsCallActive(false);
