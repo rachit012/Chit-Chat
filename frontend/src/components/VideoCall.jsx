@@ -19,24 +19,6 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
   const pendingCandidatesRef = useRef([]);
   const hasRemoteDescriptionRef = useRef(false);
   const hasLocalDescriptionRef = useRef(false);
-  const connectionTimeoutRef = useRef(null);
-
-  // Set up connection timeout
-  useEffect(() => {
-    connectionTimeoutRef.current = setTimeout(() => {
-      if (isConnecting && !isClosedRef.current) {
-        console.log('Connection timeout - ending call');
-        setError('Connection timeout. Please try again.');
-        onClose();
-      }
-    }, 30000); // 30 second timeout
-
-    return () => {
-      if (connectionTimeoutRef.current) {
-        clearTimeout(connectionTimeoutRef.current);
-      }
-    };
-  }, [isConnecting, onClose]);
 
   const handleCallSignal = useCallback(async ({ signal }) => {
     if (isClosedRef.current) return;
@@ -79,22 +61,22 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
           console.log('Answer sent to peer');
         }
         
-              } else if (signal.type === 'answer') {
-          if (pc.signalingState === 'have-local-offer') {
-            console.log('Processing answer...');
-            await pc.setRemoteDescription(new RTCSessionDescription(signal));
-            hasRemoteDescriptionRef.current = true;
-            console.log('Remote description set (answer)');
-            
-            // Process any pending candidates
-            while (pendingCandidatesRef.current.length > 0) {
-              const candidate = pendingCandidatesRef.current.shift();
-              await pc.addIceCandidate(candidate);
-              console.log('Added pending ICE candidate');
-            }
-          } else {
-            console.log('Ignoring answer - not in have-local-offer state');
+      } else if (signal.type === 'answer') {
+        if (pc.signalingState === 'have-local-offer') {
+          console.log('Processing answer...');
+          await pc.setRemoteDescription(new RTCSessionDescription(signal));
+          hasRemoteDescriptionRef.current = true;
+          console.log('Remote description set (answer)');
+          
+          // Process any pending candidates
+          while (pendingCandidatesRef.current.length > 0) {
+            const candidate = pendingCandidatesRef.current.shift();
+            await pc.addIceCandidate(candidate);
+            console.log('Added pending ICE candidate');
           }
+        } else {
+          console.log('Ignoring answer - not in have-local-offer state');
+        }
         
       } else if (signal.type === 'candidate') {
         if (hasRemoteDescriptionRef.current) {
@@ -167,11 +149,6 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
       if (pc.connectionState === 'connected') {
         setIsConnecting(false);
         console.log('WebRTC connection established!');
-        // Clear connection timeout when connected
-        if (connectionTimeoutRef.current) {
-          clearTimeout(connectionTimeoutRef.current);
-          connectionTimeoutRef.current = null;
-        }
       } else if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
         console.log('WebRTC connection lost:', pc.connectionState);
         if (!isClosedRef.current) onClose();
@@ -213,17 +190,30 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
       console.log('Local description set to offer');
       
       if (socketRef.current) {
-        socketRef.current.emit('callSignal', { 
-          signal: { type: 'offer', sdp: offer.sdp }, 
-          to: otherUser._id 
-        });
-        console.log('Offer sent to peer');
+        // Send offer with retry mechanism
+        const sendOffer = () => {
+          socketRef.current.emit('callSignal', { 
+            signal: { type: 'offer', sdp: offer.sdp }, 
+            to: otherUser._id 
+          });
+          console.log('Offer sent to peer');
+        };
+        
+        sendOffer();
+        
+        // Retry sending offer after 2 seconds if still connecting
+        setTimeout(() => {
+          if (isConnecting && !isClosedRef.current) {
+            console.log('Retrying offer send...');
+            sendOffer();
+          }
+        }, 2000);
       }
     } catch (err) {
       console.error('Error creating offer:', err);
       setError('Failed to initiate call');
     }
-  }, [isIncomingCallProp, otherUser._id, createPeerConnection, callType]);
+  }, [isIncomingCallProp, otherUser._id, createPeerConnection, callType, isConnecting]);
 
   useEffect(() => {
     let socket;
@@ -249,14 +239,24 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
         socket = await getSocket();
         socketRef.current = socket;
         
+        console.log('Socket connected, setting up event listeners...');
+        
         // Setup listeners first
-        socket.on('callSignal', handleCallSignal);
+        socket.on('callSignal', (data) => {
+          console.log('Received callSignal event:', data);
+          handleCallSignal(data);
+        });
         socket.on('callEnded', handleCallEnded);
 
         if (isIncomingCallProp) {
-          // Callee is ready, create PC and wait for offer
+          // Callee is ready, create peer connection and wait for offer
           console.log('Callee: Creating peer connection and waiting for offer...');
           createPeerConnection(stream);
+          
+          // Add a small delay to ensure peer connection is ready
+          setTimeout(() => {
+            console.log('Callee: Peer connection ready, waiting for offer...');
+          }, 100);
         } else {
           // Caller listens for acceptance before creating PC
           console.log('Caller: Waiting for call acceptance...');
