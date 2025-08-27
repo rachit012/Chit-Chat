@@ -20,7 +20,14 @@ const CallManager = ({ currentUser }) => {
 
   // Handle outgoing calls from CallContext
   useEffect(() => {
-    console.log('CallManager: State change detected:', { isCallActive, activeCallType, activeCallData, activeCall });
+    console.log('CallManager: State change detected:', { 
+      isCallActive, 
+      activeCallType, 
+      activeCallData, 
+      activeCall,
+      incomingCall,
+      currentUser: currentUser?._id 
+    });
     
     if (isCallActive && activeCallData && !activeCall) {
       // This is an outgoing call initiated from another component
@@ -30,13 +37,12 @@ const CallManager = ({ currentUser }) => {
         type: activeCallType,
         isIncoming: false,
       });
-    } else if (!isCallActive && activeCall) {
-      // Call was ended from another component
+    } else if (!isCallActive && activeCall && !incomingCall) {
+      // Only clean up if there's no incoming call and the call was ended from another component
       console.log('CallManager: Call ended from CallContext, cleaning up');
       setActiveCall(null);
-      setIncomingCall(null);
     }
-  }, [isCallActive, activeCallType, activeCallData, activeCall]);
+  }, [isCallActive, activeCallType, activeCallData, activeCall, incomingCall]);
 
   useEffect(() => {
     if (!currentUser || !currentUser._id) return;

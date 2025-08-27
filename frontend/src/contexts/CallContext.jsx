@@ -31,20 +31,24 @@ export const CallProvider = ({ children }) => {
   // Listen for call state changes from other tabs
   useEffect(() => {
     const handleChannelMessage = (event) => {
+      console.log('CallContext: Received BroadcastChannel message:', event.data);
       const { type, data } = event.data;
       
       switch (type) {
         case 'CALL_STARTED':
+          console.log('CallContext: Processing CALL_STARTED message:', data);
           setIsCallActive(true);
           setActiveCallType(data.callType);
-          setActiveCallData(data);
+          setActiveCallData(data.callData);
           break;
         case 'CALL_ENDED':
+          console.log('CallContext: Processing CALL_ENDED message:', data);
           setIsCallActive(false);
           setActiveCallType(null);
           setActiveCallData(null);
           break;
         case 'CALL_STATE_SYNC':
+          console.log('CallContext: Processing CALL_STATE_SYNC message:', data);
           // Sync state from other tabs
           if (data.isCallActive) {
             setIsCallActive(true);
@@ -59,7 +63,8 @@ export const CallProvider = ({ children }) => {
 
     callStateChannel.addEventListener('message', handleChannelMessage);
 
-    // Broadcast current state to other tabs
+    // Only broadcast state on mount, not on every state change
+    console.log('CallContext: Broadcasting initial state on mount:', { isCallActive, activeCallType, activeCallData });
     callStateChannel.postMessage({
       type: 'CALL_STATE_SYNC',
       data: {
@@ -72,9 +77,11 @@ export const CallProvider = ({ children }) => {
     return () => {
       callStateChannel.removeEventListener('message', handleChannelMessage);
     };
-  }, [isCallActive, activeCallType, activeCallData]);
+  }, []); // Remove dependencies to prevent infinite loop
 
   const startCall = (callType, callData = null) => {
+    console.log('CallContext: startCall called with:', { callType, callData, currentState: { isCallActive, activeCallType, activeCallData } });
+    
     // Check if already in a call
     if (isCallActiveRef.current) {
       console.warn('Call already active, cannot start new call');
@@ -96,6 +103,8 @@ export const CallProvider = ({ children }) => {
   };
 
   const endCall = () => {
+    console.log('CallContext: endCall called, current state:', { isCallActive, activeCallType, activeCallData });
+    
     // Update local state
     setIsCallActive(false);
     setActiveCallType(null);
