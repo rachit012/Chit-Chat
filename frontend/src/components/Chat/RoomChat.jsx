@@ -450,7 +450,7 @@ const RoomChat = ({ currentUser }) => {
           
           {/* Call and Selection mode controls */}
           <div className="flex items-center space-x-2">
-            {/* Call buttons */}
+            {/* Call buttons
             <button
               onClick={() => {
                 setCallType('voice');
@@ -475,7 +475,7 @@ const RoomChat = ({ currentUser }) => {
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2 6a2 2 0 012-2h6l2 2h6a2 2 0 012 2v2M2 6v10a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2H4a2 2 0 00-2-2z" />
               </svg>
-            </button>
+            </button> */}
 
             {isSelectionMode && (
               <>
