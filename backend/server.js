@@ -574,6 +574,12 @@ io.on('connection', (socket) => {
     io.to(to).emit('callAccepted', { from });
   });
 
+  // Handle callee ready confirmation
+  socket.on('calleeReady', ({ to }) => {
+    console.log(`[Callee Ready] From: ${socket.userId} -> To: ${to}`);
+    io.to(to).emit('calleeReady', { from: socket.userId });
+  });
+
   // Handle call rejection
   socket.on('callRejected', ({ to, from }) => {
     console.log(`[Call Rejected] From: ${from} -> To: ${to}`);

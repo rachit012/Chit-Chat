@@ -14,7 +14,7 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
   const socketRef = useRef(null);
   const localStreamRef = useRef(null);
   
-  // ✅ All necessary locks for stability
+  // All necessary locks for stability
   const isNegotiatingRef = useRef(false);
   const isClosedRef = useRef(false);
   const pendingCandidatesRef = useRef([]);
@@ -63,7 +63,7 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
           console.log('Answer sent to peer');
         }
         
-              } else if (signal.type === 'answer') {
+      } else if (signal.type === 'answer') {
           if (pc.signalingState === 'have-local-offer') {
             console.log('Processing answer...');
             await pc.setRemoteDescription(new RTCSessionDescription(signal));
@@ -125,9 +125,15 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
     // Handle incoming streams
     pc.ontrack = (event) => {
       console.log('Received remote track:', event.track.kind);
-      if (remoteVideoRef.current && event.streams && event.streams[0]) {
-        remoteVideoRef.current.srcObject = event.streams[0];
-        console.log('Remote video stream set');
+      if (remoteVideoRef.current) {
+        let remoteStream = remoteVideoRef.current.srcObject;
+        if (!remoteStream) {
+          remoteStream = new MediaStream();
+          remoteVideoRef.current.srcObject = remoteStream;
+          console.log('Created new MediaStream for remote peer.');
+        }
+        remoteStream.addTrack(event.track);
+        console.log(`Added remote ${event.track.kind} track to stream.`);
       }
     };
     
@@ -188,17 +194,17 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
         offerToReceiveVideo: callType === 'video'
       });
       
-              await pc.setLocalDescription(offer);
-        hasLocalDescriptionRef.current = true;
-        console.log('Local description set to offer');
-        
-        if (socketRef.current) {
-          socketRef.current.emit('callSignal', { 
-            signal: { type: 'offer', sdp: offer.sdp }, 
-            to: otherUser._id 
-          });
-          console.log('Offer sent to peer');
-        }
+      await pc.setLocalDescription(offer);
+      hasLocalDescriptionRef.current = true;
+      console.log('Local description set to offer');
+      
+      if (socketRef.current) {
+        socketRef.current.emit('callSignal', { 
+          signal: { type: 'offer', sdp: offer.sdp }, 
+          to: otherUser._id 
+        });
+        console.log('Offer sent to peer');
+      }
     } catch (err) {
       console.error('Error creating offer:', err);
       setError('Failed to initiate call');
@@ -207,12 +213,6 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
 
   useEffect(() => {
     let socket;
-
-    const handleCallAccepted = () => {
-        // This is now the trigger for the caller to start the WebRTC handshake
-        console.log('Call accepted, starting WebRTC handshake...');
-        initiateCallHandshake(localStreamRef.current);
-    };
 
     const setup = async () => {
       try {
@@ -239,18 +239,26 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
         socket.on('callEnded', handleCallEnded);
 
         if (isIncomingCallProp) {
-          // Callee is ready, create peer connection and wait for offer
-          console.log('Callee: Creating peer connection and waiting for offer...');
+          // Callee creates peer connection and notifies the caller it's ready.
+          console.log('Callee: Creating peer connection...');
           createPeerConnection(stream);
           
-          // Add a small delay to ensure peer connection is ready
-          setTimeout(() => {
-            console.log('Callee: Peer connection ready, waiting for offer...');
-          }, 100);
+          // FIX: Notify the caller that the callee is ready for the offer.
+          console.log('Callee: Emitting calleeReady to caller.');
+          socket.emit('calleeReady', { to: otherUser._id });
+
         } else {
-          // Caller listens for acceptance before creating PC
-          console.log('Caller: Waiting for call acceptance...');
-          socket.on('callAccepted', handleCallAccepted);
+          // FIX: Caller now waits for 'calleeReady' instead of 'callAccepted'.
+          const onCalleeReady = () => {
+              console.log('Caller: Received calleeReady, starting WebRTC handshake...');
+              initiateCallHandshake(localStreamRef.current);
+          };
+          
+          // Caller listens for the callee's confirmation before creating the offer.
+          console.log('Caller: Waiting for callee to be ready...');
+          socket.on('calleeReady', onCalleeReady);
+
+          // Still emit callRequest to start the process for the callee.
           socket.emit('callRequest', { to: otherUser._id, from: currentUser._id, type: callType });
         }
       } catch (err) {
@@ -268,7 +276,8 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
       if (socketRef.current) {
         socketRef.current.off('callSignal', handleCallSignal);
         socketRef.current.off('callEnded', handleCallEnded);
-        socketRef.current.off('callAccepted', handleCallAccepted);
+        // FIX: Update cleanup to remove the correct listener.
+        socketRef.current.off('calleeReady');
       }
       
       if (peerConnectionRef.current) {
