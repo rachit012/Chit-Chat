@@ -6,7 +6,6 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
   const [error, setError] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
 
   const localVideoRef = useRef();
   const remoteVideoRef = useRef();
@@ -14,88 +13,44 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
   const socketRef = useRef(null);
   const localStreamRef = useRef(null);
   
-  // All necessary locks for stability
-  const isNegotiatingRef = useRef(false);
   const isClosedRef = useRef(false);
   const pendingCandidatesRef = useRef([]);
-  const hasRemoteDescriptionRef = useRef(false);
-  const hasLocalDescriptionRef = useRef(false);
-  const connectionTimeoutRef = useRef(null);
 
   const handleCallSignal = useCallback(async ({ signal }) => {
-    if (isClosedRef.current) return;
+    if (isClosedRef.current || !peerConnectionRef.current) return;
     const pc = peerConnectionRef.current;
-    if (!pc) return;
-
-    console.log(`Received signal: ${signal.type}`);
 
     try {
       if (signal.type === 'offer') {
-        if (pc.signalingState !== 'stable' || isNegotiatingRef.current) {
-          console.log('Ignoring offer - not in stable state or already negotiating');
-          return;
-        }
-        
-        console.log('Processing offer...');
-        isNegotiatingRef.current = true;
-        
         await pc.setRemoteDescription(new RTCSessionDescription(signal));
-        hasRemoteDescriptionRef.current = true;
-        console.log('Remote description set (offer)');
-        
-        // Process any pending candidates
         while (pendingCandidatesRef.current.length > 0) {
           const candidate = pendingCandidatesRef.current.shift();
           await pc.addIceCandidate(candidate);
-          console.log('Added pending ICE candidate');
         }
-        
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        hasLocalDescriptionRef.current = true;
-        console.log('Local description set (answer)');
-        
         if (socketRef.current) {
           socketRef.current.emit('callSignal', { 
-            signal: { type: 'answer', sdp: answer.sdp }, 
+            signal: pc.localDescription, 
             to: otherUser._id 
           });
-          console.log('Answer sent to peer');
         }
-        
       } else if (signal.type === 'answer') {
-          if (pc.signalingState === 'have-local-offer') {
-            console.log('Processing answer...');
-            await pc.setRemoteDescription(new RTCSessionDescription(signal));
-            hasRemoteDescriptionRef.current = true;
-            console.log('Remote description set (answer)');
-            
-            // Process any pending candidates
-            while (pendingCandidatesRef.current.length > 0) {
-              const candidate = pendingCandidatesRef.current.shift();
-              await pc.addIceCandidate(candidate);
-              console.log('Added pending ICE candidate');
-            }
-          } else {
-            console.log('Ignoring answer - not in have-local-offer state');
-          }
-        
-      } else if (signal.type === 'candidate') {
-        if (hasRemoteDescriptionRef.current) {
-          console.log('Adding ICE candidate immediately');
+        if (pc.signalingState !== 'have-local-offer') return;
+        await pc.setRemoteDescription(new RTCSessionDescription(signal));
+        while (pendingCandidatesRef.current.length > 0) {
+          const candidate = pendingCandidatesRef.current.shift();
+          await pc.addIceCandidate(candidate);
+        }
+      } else if (signal.candidate) {
+        if (pc.remoteDescription) {
           await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
         } else {
-          console.log('Storing ICE candidate for later');
-          pendingCandidatesRef.current.push(new RTCIceCandidate(signal.candidate));
+          pendingCandidatesRef.current.push(signal.candidate);
         }
       }
     } catch (err) {
       console.error('Error handling signal:', err);
-      setError(`Signal handling error: ${err.message}`);
-    } finally {
-      if (signal.type === 'offer') {
-        isNegotiatingRef.current = false;
-      }
     }
   }, [otherUser._id]);
 
@@ -104,77 +59,47 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
   }, [onClose]);
 
   const createPeerConnection = useCallback((stream) => {
-    if (peerConnectionRef.current) return;
+    if (peerConnectionRef.current) return peerConnectionRef.current;
     
-    console.log('Creating new peer connection...');
     const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' }
-      ],
-      iceCandidatePoolSize: 10
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
     });
     
-    // Add local stream tracks
-    stream.getTracks().forEach(track => {
-      console.log('Adding track to peer connection:', track.kind);
-      pc.addTrack(track, stream);
-    });
+    stream.getTracks().forEach(track => pc.addTrack(track, stream));
     
-    // Handle incoming streams
     pc.ontrack = (event) => {
-      console.log('Received remote track:', event.track.kind);
-      if (remoteVideoRef.current) {
-        let remoteStream = remoteVideoRef.current.srcObject;
-        if (!remoteStream) {
-          remoteStream = new MediaStream();
-          remoteVideoRef.current.srcObject = remoteStream;
-          console.log('Created new MediaStream for remote peer.');
+      if (remoteVideoRef.current && event.streams && event.streams[0]) {
+        // ✅ FINAL FIX: Only assign the srcObject if it hasn't been set.
+        // This prevents the new load request from interrupting the play() command.
+        if (remoteVideoRef.current.srcObject !== event.streams[0]) {
+          console.log('Assigning remote stream to video element for the first time.');
+          remoteVideoRef.current.srcObject = event.streams[0];
+          
+          // Call play() only when we first set the stream.
+          remoteVideoRef.current.play().catch(e => {
+            console.error("Remote video autoplay failed:", e);
+            // You can optionally show an "Click to play" button here on failure.
+          });
         }
-        remoteStream.addTrack(event.track);
-        console.log(`Added remote ${event.track.kind} track to stream.`);
       }
     };
     
-    // Handle ICE candidates
     pc.onicecandidate = (event) => {
-      if (event.candidate && socketRef.current && !isClosedRef.current) {
-        console.log('Sending ICE candidate');
+      if (event.candidate && socketRef.current) {
         socketRef.current.emit('callSignal', { 
-          signal: { type: 'candidate', candidate: event.candidate }, 
+          signal: { candidate: event.candidate }, 
           to: otherUser._id 
         });
       }
     };
     
-    // Handle connection state changes
     pc.onconnectionstatechange = () => {
-      if (!pc || isClosedRef.current) return;
-      
-      console.log('Connection state changed:', pc.connectionState);
-      
       if (pc.connectionState === 'connected') {
         setIsConnecting(false);
-        setIsConnected(true);
         console.log('WebRTC connection established!');
       } else if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
-        console.log('WebRTC connection lost:', pc.connectionState);
         if (!isClosedRef.current) onClose();
       }
-    };
-    
-    // Handle ICE connection state changes
-    pc.oniceconnectionstatechange = () => {
-      console.log('ICE connection state:', pc.iceConnectionState);
-      if (pc.iceConnectionState === 'connected') {
-        console.log('ICE connection established!');
-      }
-    };
-
-    // Handle ICE gathering state changes
-    pc.onicegatheringstatechange = () => {
-      console.log('ICE gathering state:', pc.iceGatheringState);
     };
     
     peerConnectionRef.current = pc;
@@ -182,118 +107,75 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
   }, [otherUser._id, onClose]);
 
   const initiateCallHandshake = useCallback(async (stream) => {
-    if (isIncomingCallProp) return; // Callee waits for offer
+    if (isIncomingCallProp) return;
     
-    console.log('Initiating call handshake...');
+    const pc = createPeerConnection(stream);
     try {
-      const pc = createPeerConnection(stream);
-      if (!pc) return;
-      
       const offer = await pc.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: callType === 'video'
       });
-      
       await pc.setLocalDescription(offer);
-      hasLocalDescriptionRef.current = true;
-      console.log('Local description set to offer');
-      
       if (socketRef.current) {
         socketRef.current.emit('callSignal', { 
-          signal: { type: 'offer', sdp: offer.sdp }, 
+          signal: pc.localDescription, 
           to: otherUser._id 
         });
-        console.log('Offer sent to peer');
       }
     } catch (err) {
       console.error('Error creating offer:', err);
-      setError('Failed to initiate call');
     }
   }, [isIncomingCallProp, otherUser._id, createPeerConnection, callType]);
 
   useEffect(() => {
     let socket;
-
     const setup = async () => {
       try {
-        console.log('Setting up call...');
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: callType === 'video',
-          audio: true,
+          video: callType === 'video', audio: true,
         });
         localStreamRef.current = stream;
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
-
         socket = await getSocket();
         socketRef.current = socket;
         
-        console.log('Socket connected, setting up event listeners...');
-        
-        // Setup listeners first
-        socket.on('callSignal', (data) => {
-          console.log('Received callSignal event:', data);
-          handleCallSignal(data);
-        });
+        socket.on('callSignal', handleCallSignal);
         socket.on('callEnded', handleCallEnded);
 
         if (isIncomingCallProp) {
-          // Callee creates peer connection and notifies the caller it's ready.
-          console.log('Callee: Creating peer connection...');
           createPeerConnection(stream);
-          
-          // FIX: Notify the caller that the callee is ready for the offer.
-          console.log('Callee: Emitting calleeReady to caller.');
           socket.emit('calleeReady', { to: otherUser._id });
-
         } else {
-          // FIX: Caller now waits for 'calleeReady' instead of 'callAccepted'.
-          const onCalleeReady = () => {
-              console.log('Caller: Received calleeReady, starting WebRTC handshake...');
-              initiateCallHandshake(localStreamRef.current);
-          };
-          
-          // Caller listens for the callee's confirmation before creating the offer.
-          console.log('Caller: Waiting for callee to be ready...');
+          const onCalleeReady = () => initiateCallHandshake(localStreamRef.current);
           socket.on('calleeReady', onCalleeReady);
-
-          // Still emit callRequest to start the process for the callee.
           socket.emit('callRequest', { to: otherUser._id, from: currentUser._id, type: callType });
         }
       } catch (err) {
-        console.error('Call initialization error:', err);
         setError(`Failed to start call: ${err.message}`);
       }
     };
-
     setup();
 
     return () => {
-      console.log('Cleaning up VideoCall component...');
       isClosedRef.current = true;
-      
       if (socketRef.current) {
-        socketRef.current.off('callSignal', handleCallSignal);
-        socketRef.current.off('callEnded', handleCallEnded);
-        // FIX: Update cleanup to remove the correct listener.
+        socketRef.current.off('callSignal');
+        socketRef.current.off('callEnded');
         socketRef.current.off('calleeReady');
       }
-      
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close();
         peerConnectionRef.current = null;
       }
-      
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(track => track.stop());
-        localStreamRef.current = null;
       }
     };
   }, [callType, currentUser._id, otherUser._id, isIncomingCallProp, createPeerConnection, handleCallSignal, handleCallEnded, initiateCallHandshake]);
 
   const endCall = useCallback(() => {
-    console.log('Ending call...');
     if (socketRef.current && !isClosedRef.current) {
       socketRef.current.emit('callEnded', { to: otherUser._id });
     }
@@ -302,19 +184,21 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
 
   const toggleMute = () => {
     if (localStreamRef.current) {
-      localStreamRef.current.getAudioTracks().forEach(track => {
-        track.enabled = !track.enabled;
-        setIsMuted(!track.enabled);
-      });
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setIsMuted(!audioTrack.enabled);
+      }
     }
   };
 
   const toggleVideo = () => {
     if (localStreamRef.current && callType === 'video') {
-      localStreamRef.current.getVideoTracks().forEach(track => {
-        track.enabled = !track.enabled;
-        setIsVideoOff(!track.enabled);
-      });
+      const videoTrack = localStreamRef.current.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        setIsVideoOff(!videoTrack.enabled);
+      }
     }
   };
   
@@ -324,9 +208,7 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
         <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 text-center">
           <h3 className="text-xl font-semibold mb-3 text-red-600">Call Error</h3>
           <p className="text-gray-700 mb-5">{error}</p>
-          <button onClick={onClose} className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
-            Close
-          </button>
+          <button onClick={onClose} className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">Close</button>
         </div>
       </div>
     );
@@ -335,36 +217,33 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
   return (
     <div className="fixed inset-0 bg-black flex flex-col z-50">
       <div className="flex-1 relative bg-gray-900">
-        {isConnecting ? (
-          <div className="w-full h-full flex items-center justify-center">
+        {isConnecting && (
+          <div className="absolute inset-0 flex items-center justify-center z-10">
             <div className="text-center text-white">
-              <div className="text-5xl mb-4 animate-pulse">📞</div>
               <p className="text-xl font-semibold">
                 {isIncomingCallProp ? `Connecting to ${otherUser.username}...` : `Calling ${otherUser.username}...`}
               </p>
-              <p className="text-sm text-gray-300 mt-2">Establishing connection...</p>
             </div>
           </div>
-        ) : (
-          <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
         )}
+        <video ref={remoteVideoRef} playsInline className="w-full h-full object-cover" />
       </div>
 
-      <div className="absolute top-5 right-5 w-36 h-48 bg-gray-800 rounded-xl overflow-hidden shadow-lg border-2 border-gray-700">
+      <div className="absolute top-5 right-5 w-36 h-48 bg-gray-800 rounded-xl overflow-hidden shadow-lg border-2 border-gray-700 z-20">
         <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-6">
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-6 z-20">
         <div className="flex justify-center items-center gap-6">
-          <button onClick={toggleMute} className={`w-16 h-16 flex items-center justify-center rounded-full text-2xl transition-colors ${isMuted ? 'bg-red-600' : 'bg-gray-700 bg-opacity-80'} text-white hover:bg-opacity-100`}>
+          <button onClick={toggleMute} className={`w-16 h-16 flex items-center justify-center rounded-full text-2xl transition-colors ${isMuted ? 'bg-red-600' : 'bg-gray-700 bg-opacity-80'} text-white`}>
             {isMuted ? '🔇' : '🎤'}
           </button>
           {callType === 'video' && (
-            <button onClick={toggleVideo} className={`w-16 h-16 flex items-center justify-center rounded-full text-2xl transition-colors ${isVideoOff ? 'bg-red-600' : 'bg-gray-700 bg-opacity-80'} text-white hover:bg-opacity-100`}>
+            <button onClick={toggleVideo} className={`w-16 h-16 flex items-center justify-center rounded-full text-2xl transition-colors ${isVideoOff ? 'bg-red-600' : 'bg-gray-700 bg-opacity-80'} text-white`}>
               {isVideoOff ? '📷' : '📹'}
             </button>
           )}
-          <button onClick={endCall} className="w-20 h-16 flex items-center justify-center rounded-full bg-red-600 text-white text-3xl hover:bg-red-700">
+          <button onClick={endCall} className="w-20 h-16 flex items-center justify-center rounded-full bg-red-600 text-white text-3xl">
             📞
           </button>
         </div>
