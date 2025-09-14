@@ -705,6 +705,32 @@ io.on('connection', (socket) => {
   });
 });
 
+try {
+  app.use('/api/auth', require('./routes/authRoutes'));
+  console.log("Loaded authRoutes");
+} catch (err) { console.error("authRoutes error:", err); }
+
+try {
+  app.use('/api/users', require('./routes/userRoutes'));
+  console.log("Loaded userRoutes");
+} catch (err) { console.error("userRoutes error:", err); }
+
+try {
+  app.use('/api/messages', require('./routes/messageRoutes'));
+  console.log("Loaded messageRoutes");
+} catch (err) { console.error("messageRoutes error:", err); }
+
+try {
+  app.use('/api/rooms', require('./routes/roomRoutes'));
+  console.log("Loaded roomRoutes");
+} catch (err) { console.error("roomRoutes error:", err); }
+
+try {
+  app.use('/api/ai', require('./routes/aiRoutes'));
+  console.log("Loaded aiRoutes");
+} catch (err) { console.error("aiRoutes error:", err); }
+
+
 // API Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
