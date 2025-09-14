@@ -105,7 +105,7 @@ router.post('/:roomId/leave', authMiddleware, async (req, res) => {
 });
 
 // Get room details
-router.get('/:roomId', authMiddleware, async (req, res) => {
+router.get('/id/:roomId', authMiddleware, async (req, res) => {
   try {
     const room = await Room.findById(req.params.roomId)
       .populate('creator', 'username avatar')

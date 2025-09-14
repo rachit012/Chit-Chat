@@ -80,7 +80,7 @@ router.get('/room/:roomId', authMiddleware, async (req, res) => {
 
 
 // Get messages between two users with pagination
-router.get('/:userId', authMiddleware, async (req, res) => {
+router.get('/user/:userId', authMiddleware, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
