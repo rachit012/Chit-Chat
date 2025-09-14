@@ -60,6 +60,25 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
   }
 });
 
+router.get('/room/:roomId', authMiddleware, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const messages = await Message.find({ room: req.params.roomId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('sender', 'username avatar');
+
+    res.json(messages.reverse());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // Get messages between two users with pagination
 router.get('/:userId', authMiddleware, async (req, res) => {
   try {
@@ -146,24 +165,6 @@ router.post('/', authMiddleware, async (req, res) => {
     res.status(201).json(populatedMessage);
   } catch (err) {
     res.status(400).json({ error: err.message });
-  }
-});
-
-router.get('/room/:roomId', authMiddleware, async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const skip = (page - 1) * limit;
-
-    const messages = await Message.find({ room: req.params.roomId })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('sender', 'username avatar');
-
-    res.json(messages.reverse());
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
 });
 
