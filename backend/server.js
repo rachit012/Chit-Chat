@@ -716,7 +716,7 @@ app.use('/api/ai', require('./routes/aiRoutes'));
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../dist")));
 
-  app.get("*", (req, res) => {
+  app.get("/.*/", (req, res) => {
     res.sendFile(path.resolve(__dirname, "../dist", "index.html"));
   });
 }
