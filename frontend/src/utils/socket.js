@@ -5,7 +5,7 @@ import api from './api';
 let socketInstance = null;
 
 // Use environment variable or fallback to localhost
-const SOCKET_URL = import.meta.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
 const createSocketInstance = (token) => {
   return io(SOCKET_URL, {
