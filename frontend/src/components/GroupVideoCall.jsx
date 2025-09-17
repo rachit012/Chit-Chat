@@ -23,7 +23,6 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
   const pendingCandidatesRef = useRef(new Map());
   const { endCall } = useCallContext();
 
-  // Enhanced ICE servers configuration
   const getIceServers = () => {
     return [
       { urls: 'stun:stun.l.google.com:19302' },
@@ -39,7 +38,6 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
       try {
         console.log('GroupVideoCall: Initializing call...');
         
-        // Get user media
         const stream = await navigator.mediaDevices.getUserMedia({
           video: callType === 'video',
           audio: true
@@ -50,13 +48,11 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
           localVideoRef.current.srcObject = stream;
         }
 
-        // Connect to socket
         console.log('GroupVideoCall: Connecting to socket...');
         const socket = await getSocket();
         socketRef.current = socket;
         console.log('GroupVideoCall: Socket connected successfully');
 
-        // Socket event listeners
         const setupEventListeners = () => {
           socket.on('groupCallRequest', handleIncomingGroupCall);
           socket.on('groupCallAccepted', handleGroupCallAccepted);
@@ -98,7 +94,6 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
   const cleanup = () => {
     console.log('GroupVideoCall: Cleaning up...');
     
-    // Clear timeouts
     if (callRequestTimeout) {
       clearTimeout(callRequestTimeout);
       setCallRequestTimeout(null);
@@ -108,13 +103,11 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
       setSignalingTimeout(null);
     }
     
-    // Stop local stream
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
       setLocalStream(null);
     }
     
-    // Close all peer connections
     peerConnectionsRef.current.forEach(connection => connection.close());
     peerConnectionsRef.current.clear();
     pendingCandidatesRef.current.clear();
@@ -125,7 +118,6 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
   const createPeerConnection = (targetUserId) => {
     console.log('Creating new peer connection for:', targetUserId);
     
-    // Clean up existing connection if any
     const existingConnection = peerConnectionsRef.current.get(targetUserId);
     if (existingConnection) {
       console.log('Cleaning up existing peer connection for:', targetUserId);
@@ -137,7 +129,6 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
       iceCandidatePoolSize: 10
     });
     
-    // Add local stream tracks to peer connection
     if (localStream) {
       localStream.getTracks().forEach(track => {
         console.log('Adding track to peer connection for:', targetUserId, 'track:', track.kind);
@@ -145,7 +136,6 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
       });
     }
 
-    // Handle incoming streams
     peerConnection.ontrack = (event) => {
       console.log('Received remote track from:', targetUserId, 'track:', event.track.kind);
       if (event.streams && event.streams[0]) {
@@ -157,7 +147,6 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
       }
     };
 
-    // Handle ICE candidates
     peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
         console.log('Sending ICE candidate to:', targetUserId);
@@ -173,7 +162,6 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
       }
     };
 
-    // Handle connection state changes
     peerConnection.onconnectionstatechange = () => {
       console.log('Connection state for', targetUserId, ':', peerConnection.connectionState);
       setConnectionStates(prev => {
@@ -193,12 +181,10 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
       }
     };
 
-    // Handle signaling state changes
     peerConnection.onsignalingstatechange = () => {
       console.log('Signaling state for', targetUserId, ':', peerConnection.signalingState);
       if (peerConnection.signalingState === 'stable') {
         console.log('Signaling state is stable for', targetUserId, ', processing pending candidates');
-        // Process any pending candidates when we reach stable state
         setTimeout(() => {
           const pendingCandidates = pendingCandidatesRef.current.get(targetUserId) || [];
           while (pendingCandidates.length > 0) {
@@ -221,7 +207,6 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
       }
     };
 
-    // Handle ICE connection state changes
     peerConnection.oniceconnectionstatechange = () => {
       console.log('ICE connection state for', targetUserId, ':', peerConnection.iceConnectionState);
     };
@@ -241,13 +226,11 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
   const handleGroupCallAccepted = async (data) => {
     console.log('Group call accepted by:', data.from);
     
-    // Only the caller should handle this event
     if (isIncomingCall) {
       console.log('Ignoring groupCallAccepted event - we are the callee');
       return;
     }
     
-    // Clear the timeout since we got a response
     if (callRequestTimeout) {
       clearTimeout(callRequestTimeout);
       setCallRequestTimeout(null);
@@ -256,17 +239,15 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
     setIsConnecting(true);
     setIsInitiator(true);
     
-    // Only create peer connection if it doesn't exist
     if (!peerConnectionsRef.current.get(data.from)) { // Use get(data.from) to check if connection exists
       createPeerConnection(data.from);
     }
     
-    // Set a timeout for signaling
     const timeout = setTimeout(() => {
       console.log('Signaling timeout - connection taking too long');
       setError('Connection is taking too long. Please try again.');
       setIsConnecting(false);
-    }, 15000); // 15 seconds timeout for signaling
+    }, 15000); 
     setSignalingTimeout(timeout);
     
     try {
@@ -279,7 +260,6 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
       await peerConnectionsRef.current.get(data.from).setLocalDescription(offer); // Use get(data.from) to get the peer connection
       console.log('Local description set to offer');
       
-      // Wait a bit before sending the offer to ensure proper state
       setTimeout(() => {
         if (socketRef.current && socketRef.current.connected) {
           socketRef.current.emit('groupCallSignal', {
@@ -325,7 +305,6 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
       console.log('Received signal from', data.from, ':', signal.type, 'Current state:', peerConnection.signalingState, 'Is incoming call:', isIncomingCall);
       
       if (signal.type === 'offer') {
-        // Handle offer - this should only happen for the callee
         if (isIncomingCall && peerConnection.signalingState === 'stable') {
           console.log('Setting remote description (offer) for', data.from, 'as callee');
           await peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
@@ -336,7 +315,6 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
           await peerConnection.setLocalDescription(answer);
           console.log('Local description set to answer for', data.from);
           
-          // Add any pending candidates
           const pendingCandidates = pendingCandidatesRef.current.get(data.from) || [];
           while (pendingCandidates.length > 0) {
             const candidate = pendingCandidates.shift();
@@ -366,19 +344,16 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
           console.warn('Received offer but we are the caller - ignoring for', data.from);
         } else {
           console.warn('Ignoring offer: not in stable state for', data.from, 'current state:', peerConnection.signalingState);
-          // Store the offer for later if we're not in stable state
           const pendingCandidates = pendingCandidatesRef.current.get(data.from) || [];
           pendingCandidates.push({ type: 'offer', signal });
           pendingCandidatesRef.current.set(data.from, pendingCandidates);
         }
       } else if (signal.type === 'answer') {
-        // Handle answer - this should only happen for the caller
         if (!isIncomingCall && peerConnection.signalingState === 'have-local-offer') {
           console.log('Setting remote description (answer) for', data.from, 'as caller');
           await peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
           console.log('Remote description set to answer for', data.from);
           
-          // Add any pending candidates
           const pendingCandidates = pendingCandidatesRef.current.get(data.from) || [];
           while (pendingCandidates.length > 0) {
             const candidate = pendingCandidates.shift();
@@ -396,13 +371,11 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
           console.warn('Received answer but we are the callee - ignoring for', data.from);
         } else {
           console.warn('Skipping setRemoteDescription(answer): wrong signaling state', peerConnection.signalingState, 'for', data.from);
-          // Store the answer for later if we're not in the right state
           const pendingCandidates = pendingCandidatesRef.current.get(data.from) || [];
           pendingCandidates.push({ type: 'answer', signal });
           pendingCandidatesRef.current.set(data.from, pendingCandidates);
         }
       } else if (signal.type === 'candidate') {
-        // Handle ICE candidate
         console.log('Adding ICE candidate for', data.from);
         if (peerConnection.remoteDescription) {
           try {
@@ -426,27 +399,23 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
 
   const handleUserJoinedGroupCall = (data) => {
     console.log('User joined group call:', data.userId);
-    // Create peer connection for new user
     createPeerConnection(data.userId);
   };
 
   const handleUserLeftGroupCall = (data) => {
     console.log('User left group call:', data.userId);
-    // Clean up peer connection
     const peerConnection = peerConnectionsRef.current.get(data.userId);
     if (peerConnection) {
       peerConnection.close();
       peerConnectionsRef.current.delete(data.userId);
     }
     
-    // Remove remote stream
     setRemoteStreams(prev => {
       const newMap = new Map(prev);
       newMap.delete(data.userId);
       return newMap;
     });
     
-    // Remove connection state
     setConnectionStates(prev => {
       const newMap = new Map(prev);
       newMap.delete(data.userId);
@@ -460,7 +429,6 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
       setIsConnecting(true);
       setIsInitiator(true);
       
-      // Ensure socket is available
       if (!socketRef.current) {
         console.log('GroupVideoCall: Socket not available, attempting to connect...');
         try {
@@ -497,14 +465,10 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
 
   const acceptGroupCall = () => {
     console.log('GroupVideoCall: Accept group call function called (this should not happen)');
-    // This function should not be called directly from GroupVideoCall
-    // CallManager handles the acceptance
   };
 
   const rejectGroupCall = () => {
     console.log('GroupVideoCall: Reject group call function called (this should not happen)');
-    // This function should not be called directly from GroupVideoCall
-    // CallManager handles the rejection
   };
 
   const endGroupCall = () => {
@@ -547,15 +511,12 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
     }
   };
 
-  // Auto-initiate call if not incoming
   useEffect(() => {
     if (!isIncomingCall && !isCallActive && !isConnecting) {
       console.log('GroupVideoCall: Auto-initiating group call (outgoing)');
       initiateGroupCall();
     } else if (isIncomingCall) {
       console.log('GroupVideoCall: Incoming call detected, setting up for incoming call');
-      // For incoming calls, we need to ensure the peer connections are ready
-      // but we don't initiate the call ourselves
     }
   }, [isIncomingCall]);
 
@@ -576,8 +537,6 @@ const GroupVideoCall = ({ currentUser, room, onClose, callType = 'video', isInco
     );
   }
 
-  // Don't show incoming call dialog here - CallManager handles that
-  // Just show the video call interface
   return (
     <div className="fixed inset-0 bg-black flex flex-col z-50">
       {/* Remote Videos Grid */}

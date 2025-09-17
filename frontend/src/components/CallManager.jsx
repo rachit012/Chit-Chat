@@ -3,7 +3,6 @@ import { getSocket } from '../utils/socket';
 import VideoCall from './VideoCall';
 import { useCallContext } from '../contexts/CallContext';
 
-// This BroadcastChannel is used to sync call state across multiple browser tabs.
 const callChannel = new BroadcastChannel('call_manager_channel');
 
 const CallManager = ({ currentUser }) => {
@@ -18,7 +17,6 @@ const CallManager = ({ currentUser }) => {
   const incomingCallRef = useRef(incomingCall);
   incomingCallRef.current = incomingCall;
 
-  // Handle outgoing calls from CallContext
   useEffect(() => {
     console.log('CallManager: State change detected:', { 
       isCallActive, 
@@ -30,7 +28,6 @@ const CallManager = ({ currentUser }) => {
     });
     
     if (isCallActive && activeCallData && !activeCall) {
-      // This is an outgoing call initiated from another component
       console.log('CallManager: Setting up outgoing call from CallContext');
       setActiveCall({
         otherUser: activeCallData.otherUser,
@@ -38,7 +35,6 @@ const CallManager = ({ currentUser }) => {
         isIncoming: false,
       });
     } else if (!isCallActive && activeCall && !incomingCall) {
-      // Only clean up if there's no incoming call and the call was ended from another component
       console.log('CallManager: Call ended from CallContext, cleaning up');
       console.log('CallManager: Cleanup reason - isCallActive:', isCallActive, 'activeCall:', !!activeCall, 'incomingCall:', !!incomingCall);
       setActiveCall(null);
@@ -56,7 +52,6 @@ const CallManager = ({ currentUser }) => {
         setSocket(socketInstance);
 
         const handleCallRequest = (data) => {
-          // Ignore call requests from oneself
           if (data.caller._id === currentUser._id) return;
           
           console.log('CallManager: Received call request from:', data.caller._id, 'type:', data.type);
@@ -67,7 +62,6 @@ const CallManager = ({ currentUser }) => {
             currentUser: currentUser._id
           });
           
-          // Check if user is busy (either in active call or has incoming call)
           if (isBusy() || activeCallRef.current || incomingCallRef.current) {
             console.warn('User is busy, rejecting call request.');
             socketInstance.emit('callRejected', { to: data.caller._id, from: currentUser._id });
@@ -78,19 +72,17 @@ const CallManager = ({ currentUser }) => {
           setIncomingCall({ caller: data.caller, type: data.type });
         };
 
-        // This handles when the other user ends, rejects, or is unavailable.
         const handleCallTerminated = ({ reason }) => {
           console.log(`Call terminated. Reason: ${reason || 'Normal hang up'}`);
           setIncomingCall(null);
           setActiveCall(null);
-          endCall(); // Update CallContext
+          endCall(); 
         };
         
         socketInstance.on('callRequest', handleCallRequest);
         socketInstance.on('callRejected', handleCallTerminated);
         socketInstance.on('callEnded', handleCallTerminated);
         
-        // Return a cleanup function
         return () => {
           socketInstance.off('callRequest', handleCallRequest);
           socketInstance.off('callRejected', handleCallTerminated);
@@ -109,7 +101,6 @@ const CallManager = ({ currentUser }) => {
     };
   }, [currentUser?._id, isBusy, endCall]);
 
-  // ✅ FIX: This effect now listens for specific actions from other tabs.
   useEffect(() => {
     const handleChannelMessage = (event) => {
       console.log(`[BroadcastChannel] Received message in this tab:`, event.data);
@@ -119,17 +110,14 @@ const CallManager = ({ currentUser }) => {
       switch (type) {
         case 'ACCEPT_CALL':
         case 'REJECT_CALL':
-          // If another tab accepted or rejected, this tab should just clear its incoming call UI.
           console.log(`[BroadcastChannel] Processing ${type}, clearing incoming call`);
           setIncomingCall(null);
           break;
         case 'END_CALL':
-          // If another tab ended the call, this tab should clean up everything.
           console.log(`[BroadcastChannel] Processing END_CALL, cleaning up everything`);
           setIncomingCall(null);
           setActiveCall(null);
-          endCall(); // Update CallContext
-          break;
+          endCall();
         default:
           break;
       }
@@ -144,7 +132,6 @@ const CallManager = ({ currentUser }) => {
 
   const handleAcceptCall = useCallback(() => {
     if (incomingCall && socket) {
-      // ✅ FIX: Broadcast the "ACCEPT" action to other tabs first.
       callChannel.postMessage({ type: 'ACCEPT_CALL' });
       
       socket.emit('callAccepted', { to: incomingCall.caller._id, from: currentUser._id });
@@ -155,14 +142,12 @@ const CallManager = ({ currentUser }) => {
       });
       setIncomingCall(null);
       
-      // Update CallContext
       startCall(incomingCall.type, { otherUser: incomingCall.caller });
     }
   }, [incomingCall, socket, currentUser, startCall]);
 
   const handleRejectCall = useCallback(() => {
     if (incomingCall && socket) {
-      // ✅ FIX: Broadcast the "REJECT" action to other tabs.
       callChannel.postMessage({ type: 'REJECT_CALL' });
 
       socket.emit('callRejected', { to: incomingCall.caller._id, from: currentUser._id });
@@ -171,11 +156,10 @@ const CallManager = ({ currentUser }) => {
   }, [incomingCall, socket, currentUser]);
 
   const handleCloseActiveCall = useCallback(() => {
-    // ✅ FIX: Broadcast the "END_CALL" action to other tabs when the call is closed from this tab.
     callChannel.postMessage({ type: 'END_CALL' });
     setActiveCall(null);
-    setIncomingCall(null); // Ensure incoming is also cleared
-    endCall(); // Update CallContext
+    setIncomingCall(null); 
+    endCall(); 
   }, [endCall]);
 
   if (incomingCall) {

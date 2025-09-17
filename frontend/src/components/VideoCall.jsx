@@ -69,16 +69,12 @@ const VideoCall = ({ currentUser, otherUser, onClose, callType = 'video', isInco
     
     pc.ontrack = (event) => {
       if (remoteVideoRef.current && event.streams && event.streams[0]) {
-        // ✅ FINAL FIX: Only assign the srcObject if it hasn't been set.
-        // This prevents the new load request from interrupting the play() command.
         if (remoteVideoRef.current.srcObject !== event.streams[0]) {
           console.log('Assigning remote stream to video element for the first time.');
           remoteVideoRef.current.srcObject = event.streams[0];
           
-          // Call play() only when we first set the stream.
           remoteVideoRef.current.play().catch(e => {
             console.error("Remote video autoplay failed:", e);
-            // You can optionally show an "Click to play" button here on failure.
           });
         }
       }

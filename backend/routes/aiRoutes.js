@@ -4,7 +4,6 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const router = express.Router();
 
-// Test endpoint to verify AI routes are working
 router.get('/test', (req, res) => {
   res.json({ 
     message: 'AI routes are working',
@@ -13,7 +12,6 @@ router.get('/test', (req, res) => {
   });
 });
 
-// Initialize Google Gemini AI
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
   console.error('GEMINI_API_KEY is not set in environment variables');
@@ -21,7 +19,6 @@ if (!apiKey) {
 
 const genAI = new GoogleGenerativeAI(apiKey || 'your-api-key-here');
 
-// Chat with AI
 router.post('/chat', authMiddleware, async (req, res) => {
   try {
     console.log('=== AI CHAT REQUEST ===');
@@ -35,12 +32,10 @@ router.post('/chat', authMiddleware, async (req, res) => {
     }
 
     console.log('Initializing Gemini AI model...');
-    // Get the generative model
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     console.log('Model initialized successfully');
 
     console.log('Sending message to Gemini:', message);
-    // Send the message and get response using generateContent
     const prompt = `You are a helpful AI assistant integrated into a chat application. Be concise, friendly, and helpful. Keep responses under 200 words unless the user asks for more detail.
 
 User: ${message}`;
@@ -64,7 +59,6 @@ User: ${message}`;
     console.error('Environment check - GEMINI_API_KEY exists:', !!process.env.GEMINI_API_KEY);
     console.error('Environment check - GEMINI_API_KEY value:', process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET');
     
-    // Handle missing API key
     if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'your_gemini_api_key_here') {
       console.error('API key is missing or not properly set');
       return res.status(500).json({ 
@@ -72,7 +66,6 @@ User: ${message}`;
       });
     }
     
-    // Handle specific Gemini API errors
     if (error.message.includes('API_KEY') || error.message.includes('Invalid API key')) {
       console.error('Invalid API key error detected');
       return res.status(500).json({ 
@@ -87,7 +80,6 @@ User: ${message}`;
       });
     }
 
-    // Log the actual error for debugging
     console.error('Unknown AI error:', error.message);
     res.status(500).json({ 
       error: `AI service error: ${error.message}` 

@@ -1,10 +1,8 @@
-// src/utils/socket.js
 import { io } from 'socket.io-client';
 import api from './api';
 
 let socketInstance = null;
 
-// Use environment variable or fallback to localhost
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
 const createSocketInstance = (token) => {
@@ -26,12 +24,10 @@ export const isSocketConnected = () => {
 
 export const connectSocket = async (token) => {
   try {
-    // If we already have a connected socket, return it
     if (socketInstance && socketInstance.connected) {
       return socketInstance;
     }
 
-    // Create new socket instance
     socketInstance = createSocketInstance(token);
     
     return new Promise((resolve, reject) => {
@@ -51,13 +47,11 @@ export const connectSocket = async (token) => {
         clearTimeout(timeout);
         console.error('Socket connection error:', error);
         
-        // Handle authentication errors
         if (error.message.includes('unauthorized') || error.message.includes('jwt')) {
           try {
             const { data } = await api.post('/auth/refresh');
             localStorage.setItem('accessToken', data.token);
             
-            // Try to connect again with new token
             socketInstance = createSocketInstance(data.token);
             socketInstance.connect();
             

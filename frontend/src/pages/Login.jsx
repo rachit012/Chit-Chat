@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../utils/api";
 import { FiEye, FiEyeOff, FiMail, FiLock } from "react-icons/fi";
-import { connectSocket } from "../utils/socket"; // Import the specific function
+import { connectSocket } from "../utils/socket"; 
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -20,7 +20,7 @@ const Login = () => {
       try {
         const res = await api.get("/auth/verify");
         if (res.data?.valid) {
-          connectSocket(token); // Use the imported connectSocket function
+          connectSocket(token); 
           navigate("/", { replace: true });
         }
       } catch (err) {
@@ -43,13 +43,11 @@ const Login = () => {
     localStorage.setItem("accessToken", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
     
-    // Connect socket after successful login
     try {
       await connectSocket(data.token);
       navigate("/");
     } catch (socketErr) {
       console.error("Socket connection failed:", socketErr);
-      // Still proceed since the app can work without socket
       navigate("/");
     }
   } catch (err) {

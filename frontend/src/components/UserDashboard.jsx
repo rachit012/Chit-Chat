@@ -33,7 +33,6 @@ const UserDashboard = ({ currentUser, onClose, onLogout }) => {
         return;
       }
       
-      // Fetch profile data
       const profileRes = await api.get('/users/profile');
       setProfileData(profileRes.data);
       setEditForm({
@@ -56,16 +55,13 @@ const UserDashboard = ({ currentUser, onClose, onLogout }) => {
       
       const response = await api.put('/users/profile', editForm);
       
-      // Update the profile data with the response
       setProfileData(response.data);
       
       setIsEditing(false);
       setError(null);
       
-      // Show success message
       alert('Profile updated successfully!');
       
-      // Refresh the profile data
       await fetchUserProfile();
     } catch (err) {
       console.error('Failed to update profile:', err);
@@ -97,7 +93,6 @@ const UserDashboard = ({ currentUser, onClose, onLogout }) => {
       setError(null);
       alert('Password changed successfully! You will be logged out to use your new password.');
       
-      // Log out the user after password change
       localStorage.removeItem('accessToken');
       localStorage.removeItem('user');
       onLogout();

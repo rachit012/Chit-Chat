@@ -80,4 +80,4 @@ const CreateRoom = ({ currentUser }) => {
   );
 };
 
-export default CreateRoom; // This is the crucial line
+export default CreateRoom;

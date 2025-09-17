@@ -5,7 +5,6 @@ const path = require('path');
 const Message = require('../models/Message');
 const authMiddleware = require('../middleware/authMiddleware');
 
-// Configure multer for file storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, path.join(__dirname, '../uploads'));
@@ -25,22 +24,18 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Set up Multer for file uploads
 const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+  limits: { fileSize: 10 * 1024 * 1024 } 
 });
 
-// Handle file uploads
 router.post('/upload', authMiddleware, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-
-    // Build dynamic base URL
     const protocol = req.protocol;
     const host = req.get('host');
     const baseUrl = `${protocol}://${host}`;
@@ -60,7 +55,6 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
   }
 });
 
-// Get messages between two users with pagination
 router.get('/:userId', authMiddleware, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -72,7 +66,7 @@ router.get('/:userId', authMiddleware, async (req, res) => {
         { sender: req.user._id, receiver: req.params.userId },
         { sender: req.params.userId, receiver: req.user._id }
       ],
-      // Filter out messages deleted for the current user
+
       $and: [
         {
           $or: [
@@ -104,24 +98,21 @@ router.get('/:userId', authMiddleware, async (req, res) => {
   }
 });
 
-// Send a message
 router.post('/', authMiddleware, async (req, res) => {
   try {
     const { receiverId, roomId, text, clientMsgId, type, location } = req.body;
     
-    // For location messages, text can be empty
     if (!text && type !== 'location') {
       return res.status(400).json({ message: 'Message text is required' });
     }
 
     const messageData = {
       sender: req.user._id,
-      text: text || '', // Ensure text is never undefined
+      text: text || '',
       clientMsgId,
       type: type || 'text'
     };
 
-    // Add location data if it's a location message
     if (type === 'location' && location) {
       messageData.location = location;
     }
@@ -167,7 +158,6 @@ router.get('/room/:roomId', authMiddleware, async (req, res) => {
   }
 });
 
-// Delete a message
 router.delete('/:messageId', authMiddleware, async (req, res) => {
   try {
     const message = await Message.findOneAndDelete({
@@ -185,7 +175,6 @@ router.delete('/:messageId', authMiddleware, async (req, res) => {
   }
 });
 
-// Test endpoint for creating messages with attachments
 router.post('/test-with-attachments', authMiddleware, async (req, res) => {
   try {
     const { receiverId, text, attachments = [] } = req.body;

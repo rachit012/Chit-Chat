@@ -29,7 +29,6 @@ const RoomChat = ({ currentUser }) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  // Validate file type
   const validTypes = ['image/jpeg', 'image/jpg', 'application/pdf'];
   if (!validTypes.includes(file.type)) {
     setSocketError('Only JPG/JPEG images and PDF files are allowed');
@@ -40,7 +39,6 @@ const RoomChat = ({ currentUser }) => {
   try {
     setIsUploading(true);
 
-    // Create preview for UI
     const previewUrl = URL.createObjectURL(file);
     setPreviewFile({
       url: previewUrl,
@@ -52,14 +50,12 @@ const RoomChat = ({ currentUser }) => {
     const formData = new FormData();
     formData.append('file', file);
 
-    // Use the correct endpoint
     const { data } = await api.post('/messages/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     });
 
-    // Update preview file with server response
     setPreviewFile({
       url: data.url,
       type: data.type,
@@ -82,11 +78,9 @@ const RoomChat = ({ currentUser }) => {
     let blob;
     
     if (file.url.startsWith('blob:')) {
-      // If it's already a blob URL
       const response = await fetch(file.url);
       blob = await response.blob();
     } else {
-      // If it's a path, fetch from server
       const response = await api.get(file.url, { responseType: 'blob' });
       blob = response.data;
     }
@@ -305,7 +299,6 @@ const RoomChat = ({ currentUser }) => {
     }
   };
 
-  // Message selection functions
   const toggleSelectionMode = () => {
     setIsSelectionMode(!isSelectionMode);
     if (isSelectionMode) {
@@ -343,40 +336,32 @@ const RoomChat = ({ currentUser }) => {
         throw new Error("Socket not available");
       }
 
-      // Delete each selected message based on deleteType
       for (const messageId of selectedMessages) {
         const message = messages.find(msg => (msg._id || msg.tempId) === messageId);
         if (message && message.sender === currentUser._id) {
-          // Sender can delete for both sides or just for themselves
           socket.emit("deleteRoomMessage", { messageId, deleteType });
         } else if (message) {
-          // Receiver can only delete for themselves
           socket.emit("deleteRoomMessage", { messageId, deleteType: 'receiver' });
         }
       }
 
-      // Remove messages from local state based on deleteType
       setMessages(prev => prev.filter(msg => {
         const msgId = msg._id || msg.tempId;
         if (!selectedMessages.has(msgId)) return true;
         
-        // If deleting for everyone, remove the message completely
         if (deleteType === 'both') return false;
         
-        // If deleting for sender only, keep the message but mark it as deleted for sender
         if (deleteType === 'sender') {
-          return msg.sender !== currentUser._id; // Keep messages from others
+          return msg.sender !== currentUser._id; 
         }
         
-        // If deleting for receiver only, keep the message but mark it as deleted for receiver
         if (deleteType === 'receiver') {
-          return msg.sender === currentUser._id; // Keep own messages
+          return msg.sender === currentUser._id;
         }
         
         return true;
       }));
 
-      // Clear selection
       setSelectedMessages(new Set());
       setIsSelectionMode(false);
       setSocketError(null);
@@ -386,7 +371,6 @@ const RoomChat = ({ currentUser }) => {
     }
   };
 
-  // Check if selected messages include receiver's messages
   const hasReceiverMessages = () => {
     return Array.from(selectedMessages).some(messageId => {
       const message = messages.find(msg => (msg._id || msg.tempId) === messageId);
@@ -394,7 +378,6 @@ const RoomChat = ({ currentUser }) => {
     });
   };
 
-  // Check if selected messages include sender's messages
   const hasSenderMessages = () => {
     return Array.from(selectedMessages).some(messageId => {
       const message = messages.find(msg => (msg._id || msg.tempId) === messageId);
@@ -411,7 +394,6 @@ const RoomChat = ({ currentUser }) => {
 
       socket.emit("deleteRoomMessage", { messageId, deleteType });
       
-      // Update local state immediately
       setMessages(prev => prev.map(msg => {
         const msgId = msg._id || msg.tempId;
         if (msgId === messageId) {
@@ -549,7 +531,6 @@ const RoomChat = ({ currentUser }) => {
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages
           .filter(message => {
-            // Filter out messages that are deleted for the current user
             if (message.isDeleted) return false;
             if (message.deletedForSender && message.sender === currentUser._id) return false;
             if (message.deletedForReceiver && message.sender !== currentUser._id) return false;

@@ -8,7 +8,6 @@ const authMiddleware = require('../middleware/authMiddleware');
 
 
 
-// Get all users (excluding current user)
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const users = await User.find({ _id: { $ne: req.user._id } })
@@ -22,7 +21,6 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// Search users
 router.get('/search', authMiddleware, async (req, res) => {
   try {
     const { query } = req.query;
@@ -46,12 +44,10 @@ router.get('/search', authMiddleware, async (req, res) => {
   }
 });
 
-// Get user statistics
 router.get('/stats', authMiddleware, async (req, res) => {
   try {
     const userId = req.user._id;
     
-    // Count total messages (sent or received by user)
     const totalMessages = await Message.countDocuments({
       $or: [
         { sender: userId },
@@ -59,7 +55,6 @@ router.get('/stats', authMiddleware, async (req, res) => {
       ]
     });
 
-    // Count rooms user is part of (as member or creator) - use aggregation to avoid duplicates
     const roomStats = await Room.aggregate([
       {
         $match: {
@@ -80,8 +75,6 @@ router.get('/stats', authMiddleware, async (req, res) => {
     const totalRooms = roomStats.length > 0 ? roomStats[0].uniqueRooms.length : 0;
     
 
-
-    // Count unique contacts (users they've messaged with)
     const contacts = await Message.aggregate([
       {
         $match: {
@@ -123,7 +116,6 @@ router.get('/stats', authMiddleware, async (req, res) => {
   }
 });
 
-// Get user profile for dashboard
 router.get('/profile', authMiddleware, async (req, res) => {
   try {
     console.log('=== PROFILE REQUEST ===');
@@ -143,7 +135,6 @@ router.get('/profile', authMiddleware, async (req, res) => {
   }
 });
 
-// Update user profile
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
     console.log('=== PROFILE UPDATE REQUEST ===');
@@ -152,7 +143,6 @@ router.put('/profile', authMiddleware, async (req, res) => {
     
     const { username, email, bio } = req.body;
     
-    // Check if username is already taken by another user
     if (username && username !== req.user.username) {
       const existingUser = await User.findOne({ username });
       if (existingUser) {
@@ -160,7 +150,6 @@ router.put('/profile', authMiddleware, async (req, res) => {
       }
     }
 
-    // Check if email is already taken by another user
     if (email && email !== req.user.email) {
       const existingUser = await User.findOne({ email });
       if (existingUser) {
@@ -182,21 +171,18 @@ router.put('/profile', authMiddleware, async (req, res) => {
   }
 });
 
-// Change password
 router.put('/change-password', authMiddleware, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     
     const user = await User.findById(req.user._id);
     
-    // Verify current password
     const isPasswordValid = await user.comparePassword(currentPassword);
     
     if (!isPasswordValid) {
       return res.status(400).json({ message: 'Current password is incorrect' });
     }
 
-    // Update password
     user.password = newPassword;
     await user.save();
 
@@ -207,21 +193,17 @@ router.put('/change-password', authMiddleware, async (req, res) => {
   }
 });
 
-// Cleanup duplicate room members (temporary route)
 router.post('/cleanup-rooms', authMiddleware, async (req, res) => {
   try {
     const userId = req.user._id;
     
-    // Find all rooms where user is a member
     const rooms = await Room.find({ members: userId });
     
     let cleanedCount = 0;
     for (const room of rooms) {
       const memberCount = room.members.filter(m => m.toString() === userId.toString()).length;
       if (memberCount > 1) {
-        // Remove all instances of the user
         room.members = room.members.filter(m => m.toString() !== userId.toString());
-        // Add user back once
         room.members.push(userId);
         await room.save();
         cleanedCount++;
@@ -238,12 +220,10 @@ router.post('/cleanup-rooms', authMiddleware, async (req, res) => {
   }
 });
 
-// Delete account
 router.delete('/account', authMiddleware, async (req, res) => {
   try {
     const userId = req.user._id;
     
-    // Delete user's messages
     await Message.deleteMany({
       $or: [
         { sender: userId },
@@ -251,13 +231,11 @@ router.delete('/account', authMiddleware, async (req, res) => {
       ]
     });
 
-    // Remove user from rooms
     await Room.updateMany(
       { members: userId },
       { $pull: { members: userId } }
     );
 
-    // Delete the user
     await User.findByIdAndDelete(userId);
 
     res.json({ message: 'Account deleted successfully' });
@@ -267,11 +245,6 @@ router.delete('/account', authMiddleware, async (req, res) => {
   }
 });
 
-
-
-
-
-// Get user profile by ID (must be last to avoid conflicts with /stats and /profile)
 router.get('/:userId', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.params.userId)

@@ -30,7 +30,7 @@ const messageSchema = new mongoose.Schema({
   attachments: {
     type: [{
       url: { type: String, required: true },
-      type: { type: String, required: true }, // 'image', 'video', 'document', etc.
+      type: { type: String, required: true }, 
       name: { type: String, required: true },
       size: { type: Number, required: true }
     }],
@@ -60,7 +60,6 @@ const messageSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Add indexes for faster querying and to prevent duplicates
 messageSchema.index({ sender: 1, receiver: 1, text: 1, clientMsgId: 1, createdAt: 1 }, { unique: true });
 messageSchema.index({ room: 1, createdAt: 1 });
 

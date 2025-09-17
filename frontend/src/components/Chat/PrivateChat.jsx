@@ -149,7 +149,6 @@ const PrivateChat = ({ currentUser }) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Validate file type
     const validTypes = ['image/jpeg', 'image/jpg', 'application/pdf'];
     if (!validTypes.includes(file.type)) {
       setConnectionError('Only JPG/JPEG images and PDF files are allowed');
@@ -160,9 +159,8 @@ const PrivateChat = ({ currentUser }) => {
     try {
       setIsUploading(true);
 
-      // Create preview for UI
       const previewUrl = URL.createObjectURL(file);
-      blobUrlsRef.current.add(previewUrl); // Track for cleanup
+      blobUrlsRef.current.add(previewUrl); 
       setPreviewFile({
         url: previewUrl,
         type: file.type.startsWith('image/') ? 'image' : 'file',
@@ -173,18 +171,15 @@ const PrivateChat = ({ currentUser }) => {
       const formData = new FormData();
       formData.append('file', file);
 
-      // Use the correct endpoint
       const { data } = await api.post('/messages/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
 
-      // Clean up the preview blob URL
       URL.revokeObjectURL(previewUrl);
       blobUrlsRef.current.delete(previewUrl);
 
-      // Update preview file with server response
       setPreviewFile({
         url: data.url,
         type: data.type,
@@ -215,17 +210,15 @@ const PrivateChat = ({ currentUser }) => {
       let blob;
       
       if (file.url.startsWith('blob:')) {
-        // If it's already a blob URL
         const response = await fetch(file.url);
         blob = await response.blob();
       } else {
-        // If it's a path, fetch from server
         const response = await api.get(file.url, { responseType: 'blob' });
         blob = response.data;
       }
 
       const downloadUrl = window.URL.createObjectURL(blob);
-      blobUrlsRef.current.add(downloadUrl); // Track for cleanup
+      blobUrlsRef.current.add(downloadUrl); 
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.setAttribute('download', file.name);
@@ -233,7 +226,6 @@ const PrivateChat = ({ currentUser }) => {
       link.click();
       document.body.removeChild(link);
       
-      // Clean up after a delay to ensure download starts
       setTimeout(() => {
         window.URL.revokeObjectURL(downloadUrl);
         blobUrlsRef.current.delete(downloadUrl);
@@ -257,7 +249,7 @@ const PrivateChat = ({ currentUser }) => {
       const position = await new Promise((resolve, reject) => {
         const timeoutId = setTimeout(() => {
           reject(new Error('Location request timed out'));
-        }, 15000); // 15 second timeout
+        }, 15000);
 
         navigator.geolocation.getCurrentPosition(
           (pos) => {
@@ -294,9 +286,8 @@ const PrivateChat = ({ currentUser }) => {
 
       const { latitude, longitude } = position.coords;
       
-      // Create location message
       const locationMessage = {
-        text: '', // Empty text for location messages
+        text: '', 
         type: 'location',
         location: {
           latitude,
@@ -311,11 +302,9 @@ const PrivateChat = ({ currentUser }) => {
         createdAt: new Date().toISOString()
       };
 
-      // Add to messages immediately
       setMessages(prev => [...prev, locationMessage]);
       scrollToBottom();
 
-      // Emit via socket immediately for real-time
       const socket = await getSocket();
       socket.emit('sendMessage', {
         ...locationMessage,
@@ -336,7 +325,6 @@ const PrivateChat = ({ currentUser }) => {
     window.open(googleMapsUrl, '_blank');
   }, []);
 
-  // Close attachment menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (showAttachmentMenu && !event.target.closest('.attachment-menu')) {
@@ -387,7 +375,6 @@ const PrivateChat = ({ currentUser }) => {
           clientMsgId
         });
       } else {
-        // Fallback to API call
         const { data } = await api.post("/messages", {
           receiverId: userId,
           text: newMessage,
@@ -416,7 +403,6 @@ const PrivateChat = ({ currentUser }) => {
     }
   }, [newMessage, previewFile, isUploading, socketReady, currentUser._id, userId, scrollToBottom]);
 
-  // Test function for API endpoint
   const testApiCall = useCallback(async () => {
     if (!previewFile) return;
     
@@ -439,7 +425,6 @@ const PrivateChat = ({ currentUser }) => {
     }
   }, [previewFile, userId]);
 
-  // Message selection functions
   const toggleSelectionMode = useCallback(() => {
     setIsSelectionMode(!isSelectionMode);
     if (isSelectionMode) {
@@ -477,40 +462,32 @@ const PrivateChat = ({ currentUser }) => {
         throw new Error("Socket not available");
       }
 
-      // Delete each selected message based on deleteType
       for (const messageId of selectedMessages) {
         const message = messages.find(msg => (msg._id || msg.clientMsgId) === messageId);
         if (message && message.sender._id === currentUser._id) {
-          // Sender can delete for both sides or just for themselves
           socket.emit("deleteMessage", { messageId, deleteType });
         } else if (message) {
-          // Receiver can only delete for themselves
           socket.emit("deleteMessage", { messageId, deleteType: 'receiver' });
         }
       }
 
-      // Remove messages from local state based on deleteType
       setMessages(prev => prev.filter(msg => {
         const msgId = msg._id || msg.clientMsgId;
         if (!selectedMessages.has(msgId)) return true;
         
-        // If deleting for everyone, remove the message completely
         if (deleteType === 'both') return false;
         
-        // If deleting for sender only, keep the message but mark it as deleted for sender
         if (deleteType === 'sender') {
-          return msg.sender._id !== currentUser._id; // Keep messages from others
+          return msg.sender._id !== currentUser._id; 
         }
         
-        // If deleting for receiver only, keep the message but mark it as deleted for receiver
         if (deleteType === 'receiver') {
-          return msg.sender._id === currentUser._id; // Keep own messages
+          return msg.sender._id === currentUser._id; 
         }
         
         return true;
       }));
 
-      // Clear selection
       setSelectedMessages(new Set());
       setIsSelectionMode(false);
       setConnectionError(null);
@@ -520,7 +497,6 @@ const PrivateChat = ({ currentUser }) => {
     }
   }, [selectedMessages, messages, currentUser._id]);
 
-  // Check if selected messages include receiver's messages
   const hasReceiverMessages = useCallback(() => {
     return Array.from(selectedMessages).some(messageId => {
       const message = messages.find(msg => (msg._id || msg.clientMsgId) === messageId);
@@ -528,7 +504,6 @@ const PrivateChat = ({ currentUser }) => {
     });
   }, [selectedMessages, messages, currentUser._id]);
 
-  // Check if selected messages include sender's messages
   const hasSenderMessages = useCallback(() => {
     return Array.from(selectedMessages).some(messageId => {
       const message = messages.find(msg => (msg._id || msg.clientMsgId) === messageId);
@@ -545,7 +520,6 @@ const PrivateChat = ({ currentUser }) => {
 
       socket.emit("deleteMessage", { messageId, deleteType });
       
-      // Update local state immediately
       setMessages(prev => prev.map(msg => {
         const msgId = msg._id || msg.clientMsgId;
         if (msgId === messageId) {
@@ -726,7 +700,6 @@ const PrivateChat = ({ currentUser }) => {
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages
           .filter(message => {
-            // Filter out messages that are deleted for the current user
             if (message.isDeleted) return false;
             if (message.deletedForSender && message.sender._id === currentUser._id) return false;
             if (message.deletedForReceiver && message.sender._id !== currentUser._id) return false;

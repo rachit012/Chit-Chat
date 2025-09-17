@@ -5,7 +5,6 @@ const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
 require("dotenv").config();
 
-// Register Route
 router.post("/register", async (req, res) => {
   try {
     const { username, email, password } = req.body;
@@ -49,7 +48,6 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// Login Route
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -62,7 +60,6 @@ router.post('/login', async (req, res) => {
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
 
-    // Update online status
     await User.findByIdAndUpdate(user._id, { online: true });
 
     const token = jwt.sign(
@@ -88,7 +85,6 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Logout Route
 router.post('/logout', authMiddleware, async (req, res) => {
   try {
     await User.findByIdAndUpdate(req.user._id, { online: false, lastSeen: Date.now() });
@@ -99,12 +95,10 @@ router.post('/logout', authMiddleware, async (req, res) => {
   }
 });
 
-// Verify Token
 router.get("/verify", authMiddleware, (req, res) => {
   res.json({ valid: true, user: req.user });
 });
 
-// Get current user profile
 router.get("/me", authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select("-password");
@@ -116,7 +110,6 @@ router.get("/me", authMiddleware, async (req, res) => {
   }
 });
 
-// Update profile
 router.put("/profile", authMiddleware, async (req, res) => {
   try {
     const { username, bio, interests, avatar } = req.body;

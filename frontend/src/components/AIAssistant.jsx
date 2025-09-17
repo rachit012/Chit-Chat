@@ -115,7 +115,6 @@ const AIAssistant = ({ currentUser, onClose }) => {
             </div>
             <div>
               <h3 className="text-lg font-semibold">AI Assistant</h3>
-              <p className="text-sm text-gray-500">Powered by Google Gemini</p>
             </div>
           </div>
           <button
