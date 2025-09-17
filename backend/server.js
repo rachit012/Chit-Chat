@@ -28,7 +28,8 @@ const allowedOrigins = [
   'http://localhost:5000',
   'https://chit-chat-5lbam5x2b-rachit012s-projects.vercel.app',
   'https://chit-chat-6vg7jj4q1-rachit012s-projects.vercel.app',
-  'https://chit-chat-lime-three.vercel.app', 
+  'https://chit-chat-lime-three.vercel.app',
+  'https://chit-chat-1-1wjm.onrender.com',
   process.env.CLIENT_URL
 ].filter(Boolean);
 
